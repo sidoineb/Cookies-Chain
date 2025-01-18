@@ -5,17 +5,18 @@ root_key = KeyPair.generate()
 
 
 # Creation du jeton Biscuit avec des autorisations
-def create_biscuit():
-    # Initialiser le constructeur de jetons Biscuit
+def create_global_biscuit():
     builder = Biscuit.builder(root_key)
-
-    # Ajouter des autorisations (droits) pour lire et écrire un fichier
     builder.add_authority_fact("right(\"file1\", \"read\")")
     builder.add_authority_fact("right(\"file1\", \"write\")")
+    return builder.build()
 
-    # Générer le jeton
-    token = builder.build()
-    return token
+
+# Attenuation des droits d'un jeton existant
+def attenuate_biscuit(token):
+    attenuated_token = token.create_block()
+    attenuated_token.add_caveat("right(\"file1\", $operation) <- $operation == \"read\"")
+    return token.append(attenuated_token)
 
 
 # Verification si l'utilisateur a le droit d'effectuer une opération
@@ -42,14 +43,18 @@ def verify_biscuit(token, operation, resource):
 
 # Test du système
 
-# Créer le jeton Biscuit
-token = create_biscuit()
+# Création du jeton global
+global_token = create_global_biscuit()
+print("Jeton global créé.")
 
-# Tenter de vérifier les droits de lecture sur "file1"
-verify_biscuit(token, "read", "file1")
+# Vérification initiale avec le jeton global
+verify_biscuit(global_token, "read", "file1")
+verify_biscuit(global_token, "write", "file1")
 
-# Tenter de vérifier les droits d'écriture sur "file1"
-verify_biscuit(token, "write", "file1")
+# Atténuation du jeton (restreint aux droits de lecture uniquement)
+attenuated_token = attenuate_biscuit(global_token)
+print("Jeton atténué créé.")
 
-# Tenter de vérifier les droits de suppression
-verify_biscuit(token, "delete", "file1")
+# Vérification avec le jeton atténué
+verify_biscuit(attenuated_token, "read", "file1")
+verify_biscuit(attenuated_token, "write", "file1")
