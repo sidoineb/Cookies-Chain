@@ -4,7 +4,7 @@ from biscuit_auth import Biscuit, KeyPair, Verifier, SymbolTable
 # Génération des clés pour signer et vérifier les jetons
 root_key = KeyPair.generate()
 
-# Définition des fichiers et de leurs permissions initiales
+# Définition fichiers/permissions
 FILES = ["file1", "file2", "file3"]
 
 # Création du jeton avec des permissions spécifiques à chaque fichier
@@ -18,7 +18,7 @@ def create_biscuit():
 
     return builder.build()
 
-# Vérification des autorisations pour une ressource donnée
+# Vérification des autorisations
 def verify_biscuit(token, operation, resource):
     verifier = Verifier(SymbolTable.default())
     verifier.add_fact(f"resource(\"{resource}\")")
