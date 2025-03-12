@@ -3,7 +3,7 @@
 
 ## Description
 Multitools basé sur le projet Biscuit-Sec (https://biscuitsec.org)
-Fonctionnalités:
+**Fonctionnalités:**
 - Creation et vérification de jeton
 - Attenuation des droits
 
