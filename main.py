@@ -41,7 +41,7 @@ def attenuate_biscuit(token_str):
     token = Biscuit.deserialize(token_str)
     attenuated_token = token.create_block()
 
-    print("\n⚠️ ATTÉNUATION DES DROITS ⚠️")
+    print("\n⚠️ ATTENUATION DES DROITS ⚠️")
     print("Vous pouvez restreindre les permissions de ce jeton.")
 
     print("Choisissez un fichier à restreindre :")
@@ -100,7 +100,8 @@ def cli():
         print("2. Vérifier un accès")
         print("3. Atténuer un jeton")
         print("4. Afficher les jetons existants")
-        print("5. Quitter")
+        print("5. Partager un jeton atténué avec un autre utilisateur")
+        print("6. Quitter")
 
         choice = input("> ")
 
@@ -169,6 +170,50 @@ def cli():
                     print(f"- {user}")
 
         elif choice == "5":
+            print("=== Partage d’un jeton atténué ===")
+            source_user = input("Utilisateur source : ")
+            if source_user not in tokens:
+                print("❌ Aucun jeton trouvé pour cet utilisateur.")
+                input("Appuyez sur Entrée pour continuer...")
+                continue
+
+            target_user = input("Nouvel utilisateur (destinataire) : ")
+            if target_user in tokens:
+                print("⚠️ Cet utilisateur possède déjà un jeton. Il sera écrasé.")
+            
+            base_token = Biscuit.deserialize(tokens[source_user])
+            block = base_token.create_block()
+
+            print("\n🔧 Définir les restrictions pour ce partage :")
+            print("Choisissez une ressource à restreindre :")
+            for idx, file in enumerate(FILES, 1):
+                print(f"{idx}. {file}")
+            file_idx = input("> ")
+            if not file_idx.isdigit() or int(file_idx) not in range(1, len(FILES)+1):
+                print("❌ Choix invalide.")
+                continue
+            resource = FILES[int(file_idx)-1]
+
+            print("Quelle opération restreindre ?")
+            print("1. Lecture (read)")
+            print("2. Écriture (write)")
+            op_choice = input("> ")
+            if op_choice == "1":
+                operation = "read"
+            elif op_choice == "2":
+                operation = "write"
+            else:
+                print("❌ Choix invalide.")
+                continue
+
+            block.add_caveat(f'revoked_right("{resource}", "{operation}")')
+            shared_token = base_token.append(block)
+            tokens[target_user] = shared_token.serialize()
+            save_tokens(tokens)
+
+            print(f"\n✅ Jeton atténué partagé avec {target_user} (restriction sur {operation} de {resource}).")
+
+        elif choice == "6":
             print("À bientôt ! 👋")
             break
 
