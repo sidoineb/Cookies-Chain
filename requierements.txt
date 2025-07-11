@@ -1,0 +1,17 @@
+# Cookies-Chain - Dépendances Python
+# Génération automatique avec: pip freeze > requirements.txt
+
+# Biscuit-Sec - Bibliothèque principale pour la gestion des jetons
+biscuit-auth>=2.0.0,<3.0.0
+
+# Click - Framework pour interfaces en ligne de commande
+click>=8.0.0,<9.0.0
+
+# Rich - Bibliothèque pour interfaces CLI colorées et modernes
+rich>=13.0.0,<14.0.0
+
+# Dépendances optionnelles pour le développement (décommentez si nécessaire)
+# pytest>=7.0.0           # Pour les tests unitaires
+# black>=22.0.0           # Pour le formatage du code
+# flake8>=4.0.0           # Pour la vérification de style
+# mypy>=0.950             # Pour la vérification de types
