@@ -1,224 +1,302 @@
+
+#!/usr/bin/env python3
+"""
+Cookies-Chain - Système de gestion d'accès basé sur Biscuit-Sec
+"""
+
 import os
 import json
+import sys
+from typing import Dict, List, Optional
 from biscuit_auth import Biscuit, KeyPair, Verifier, SymbolTable
+import click
+from rich.console import Console
+from rich.table import Table
+from rich.panel import Panel
+from rich.prompt import Prompt, Confirm
+from rich.progress import Progress, SpinnerColumn, TextColumn
 
-# Génération des clés pour signer et vérifier les jetons
-root_key = KeyPair.generate()
-
-# Fichier de stockage des jetons
+# Configuration
+console = Console()
 TOKEN_STORAGE = "jetons.json"
-
-# Définition des fichiers et de leurs permissions initiales
+KEYS_STORAGE = "keys.json"
 FILES = ["file1", "file2", "file3"]
 
-# Charger les jetons depuis le fichier JSON
-def load_tokens():
-    if os.path.exists(TOKEN_STORAGE):
-        with open(TOKEN_STORAGE, "r") as file:
-            return json.load(file)
-    return {}
+class CookiesChainError(Exception):
+    """Exception personnalisée pour Cookies-Chain"""
+    pass
 
-# Sauvegarder les jetons dans le fichier JSON
-def save_tokens(tokens):
-    with open(TOKEN_STORAGE, "w") as file:
-        json.dump(tokens, file, indent=4)
-
-# Créer un jeton et l'associer à un utilisateur
-def create_biscuit(username):
-    builder = Biscuit.builder(root_key)
-
-    builder.add_authority_fact(f"user(\"{username}\")")
-    builder.add_authority_fact("right(\"file1\", \"read\")")
-    builder.add_authority_fact("right(\"file1\", \"write\")")
-    builder.add_authority_fact("right(\"file2\", \"read\")")
-    builder.add_authority_fact("right(\"file3\", \"write\")")
-
-    token = builder.build()
-    return token.serialize()
-
-# Atténuation des droits d'un jeton existant
-def attenuate_biscuit(token_str):
-    token = Biscuit.deserialize(token_str)
-    attenuated_token = token.create_block()
-
-    print("\n⚠️ ATTENUATION DES DROITS ⚠️")
-    print("Vous pouvez restreindre les permissions de ce jeton.")
-
-    print("Choisissez un fichier à restreindre :")
-    for idx, file in enumerate(FILES, start=1):
-        print(f"{idx}. {file}")
-
-    choice = input("> ")
-    if not choice.isdigit() or int(choice) not in range(1, len(FILES) + 1):
-        print("❌ Choix invalide, annulation de l'atténuation.")
-        return token_str
-
-    resource = FILES[int(choice) - 1]
-
-    print("\nQuelle action souhaitez-vous retirer ?")
-    print("1. Lire (read)")
-    print("2. Écrire (write)")
-    action_choice = input("> ")
-
-    if action_choice == "1":
-        operation = "read"
-    elif action_choice == "2":
-        operation = "write"
-    else:
-        print("❌ Action invalide, annulation de l'atténuation.")
-        return token_str
-
-    # Ajout du caveat qui interdit l'opération choisie
-    attenuated_token.add_caveat(f"revoked_right(\"{resource}\", \"{operation}\")")
-    print(f"\n✅ Le droit '{operation}' sur '{resource}' a été supprimé.")
-
-    return token.append(attenuated_token).serialize()
-
-# Vérification des autorisations pour une ressource donnée
-def verify_biscuit(token_str, operation, resource):
-    token = Biscuit.deserialize(token_str)
-    verifier = Verifier(SymbolTable.default())
-    verifier.add_fact(f"resource(\"{resource}\")")
-    verifier.add_fact(f"operation(\"{operation}\")")
-
-    verifier.allow("right($resource, $operation) <- resource($resource), operation($operation), right($resource, $operation)")
-    verifier.deny("revoked_right($resource, $operation) <- resource($resource), operation($operation), revoked_right($resource, $operation)")
-
-    result = token.verify(root_key.public(), verifier)
-
-    return result.is_ok()
-
-# Interface en ligne de commande (CLI)
-def cli():
-    tokens = load_tokens()
-
-    while True:
-        os.system('clear' if os.name == 'posix' else 'cls')  # Efface l'écran
-
-        print("=== 🛡️ Gestion des accès aux fichiers ===")
-        print("1. Créer un jeton pour un utilisateur")
-        print("2. Vérifier un accès")
-        print("3. Atténuer un jeton")
-        print("4. Afficher les jetons existants")
-        print("5. Partager un jeton atténué avec un autre utilisateur")
-        print("6. Quitter")
-
-        choice = input("> ")
-
-        if choice == "1":
-            username = input("Entrez le nom de l'utilisateur : ")
-            if username in tokens:
-                print("❌ Un jeton existe déjà pour cet utilisateur.")
-            else:
-                tokens[username] = create_biscuit(username)
-                save_tokens(tokens)
-                print(f"✅ Jeton créé et sauvegardé pour {username}.")
-
-        elif choice == "2":
-            username = input("Entrez le nom de l'utilisateur : ")
-            if username not in tokens:
-                print("❌ Aucun jeton trouvé pour cet utilisateur.")
-                input("Appuyez sur Entrée pour continuer...")
-                continue
-
-            print("\nFichiers disponibles :")
-            for idx, file in enumerate(FILES, start=1):
-                print(f"{idx}. {file}")
-
-            file_choice = input("\nChoisissez un fichier : ")
-            if not file_choice.isdigit() or int(file_choice) not in range(1, len(FILES) + 1):
-                print("❌ Choix invalide.")
-                input("Appuyez sur Entrée pour continuer...")
-                continue
-
-            resource = FILES[int(file_choice) - 1]
-
-            print("\nActions possibles :")
-            print("1. Lire (read)")
-            print("2. Écrire (write)")
-            action_choice = input("> ")
-
-            if action_choice == "1":
-                operation = "read"
-            elif action_choice == "2":
-                operation = "write"
-            else:
-                print("❌ Action invalide.")
-                input("Appuyez sur Entrée pour continuer...")
-                continue
-
-            if verify_biscuit(tokens[username], operation, resource):
-                print(f"✅ Autorisation accordée : {username} peut {operation} sur {resource}.")
-            else:
-                print(f"❌ Accès refusé : {username} ne peut pas {operation} sur {resource}.")
+class TokenManager:
+    """Gestionnaire des jetons et clés"""
+    
+    def __init__(self):
+        self.root_key = self._load_or_create_root_key()
+        self.tokens = self._load_tokens()
+    
+    def _load_or_create_root_key(self) -> KeyPair:
+        """Charge ou crée la clé racine"""
+        if os.path.exists(KEYS_STORAGE):
+            try:
+                with open(KEYS_STORAGE, "r") as file:
+                    key_data = json.load(file)
+                    return KeyPair.from_private_key_der(bytes.fromhex(key_data["private_key"]))
+            except Exception as e:
+                console.print(f"[red]Erreur lors du chargement des clés: {e}[/red]")
+                console.print("[yellow]Génération d'une nouvelle clé...[/yellow]")
         
-        elif choice == "3":
-            username = input("Entrez le nom de l'utilisateur : ")
-            if username not in tokens:
-                print("❌ Aucun jeton trouvé pour cet utilisateur.")
-            else:
-                tokens[username] = attenuate_biscuit(tokens[username])
-                save_tokens(tokens)
-                print(f"✅ Jeton atténué et mis à jour pour {username}.")
-
-        elif choice == "4":
-            if not tokens:
-                print("❌ Aucun jeton enregistré.")
-            else:
-                print("📜 Liste des utilisateurs avec jetons :")
-                for user in tokens.keys():
-                    print(f"- {user}")
-
-        elif choice == "5":
-            print("=== Partage d’un jeton atténué ===")
-            source_user = input("Utilisateur source : ")
-            if source_user not in tokens:
-                print("❌ Aucun jeton trouvé pour cet utilisateur.")
-                input("Appuyez sur Entrée pour continuer...")
-                continue
-
-            target_user = input("Nouvel utilisateur (destinataire) : ")
-            if target_user in tokens:
-                print("⚠️ Cet utilisateur possède déjà un jeton. Il sera écrasé.")
+        # Génération d'une nouvelle clé
+        root_key = KeyPair.generate()
+        key_data = {
+            "private_key": root_key.private_key_der().hex(),
+            "public_key": root_key.public_key_der().hex()
+        }
+        
+        with open(KEYS_STORAGE, "w") as file:
+            json.dump(key_data, file, indent=4)
+        
+        return root_key
+    
+    def _load_tokens(self) -> Dict[str, str]:
+        """Charge les jetons depuis le fichier JSON"""
+        if os.path.exists(TOKEN_STORAGE):
+            try:
+                with open(TOKEN_STORAGE, "r") as file:
+                    return json.load(file)
+            except Exception as e:
+                console.print(f"[red]Erreur lors du chargement des jetons: {e}[/red]")
+                return {}
+        return {}
+    
+    def _save_tokens(self):
+        """Sauvegarde les jetons dans le fichier JSON"""
+        try:
+            with open(TOKEN_STORAGE, "w") as file:
+                json.dump(self.tokens, file, indent=4)
+        except Exception as e:
+            raise CookiesChainError(f"Erreur lors de la sauvegarde: {e}")
+    
+    def create_token(self, username: str) -> str:
+        """Crée un jeton pour un utilisateur"""
+        if username in self.tokens:
+            raise CookiesChainError("Un jeton existe déjà pour cet utilisateur")
+        
+        try:
+            builder = Biscuit.builder(self.root_key)
+            builder.add_authority_fact(f'user("{username}")')
             
-            base_token = Biscuit.deserialize(tokens[source_user])
-            block = base_token.create_block()
-
-            print("\n🔧 Définir les restrictions pour ce partage :")
-            print("Choisissez une ressource à restreindre :")
-            for idx, file in enumerate(FILES, 1):
-                print(f"{idx}. {file}")
-            file_idx = input("> ")
-            if not file_idx.isdigit() or int(file_idx) not in range(1, len(FILES)+1):
-                print("❌ Choix invalide.")
-                continue
-            resource = FILES[int(file_idx)-1]
-
-            print("Quelle opération restreindre ?")
-            print("1. Lecture (read)")
-            print("2. Écriture (write)")
-            op_choice = input("> ")
-            if op_choice == "1":
-                operation = "read"
-            elif op_choice == "2":
-                operation = "write"
-            else:
-                print("❌ Choix invalide.")
-                continue
-
+            # Permissions par défaut
+            for file in FILES:
+                builder.add_authority_fact(f'right("{file}", "read")')
+                if file != "file3":  # file3 en lecture seule par défaut
+                    builder.add_authority_fact(f'right("{file}", "write")')
+            
+            token = builder.build()
+            token_str = token.serialize()
+            self.tokens[username] = token_str
+            self._save_tokens()
+            return token_str
+            
+        except Exception as e:
+            raise CookiesChainError(f"Erreur lors de la création du jeton: {e}")
+    
+    def verify_access(self, username: str, resource: str, operation: str) -> bool:
+        """Vérifie l'accès d'un utilisateur à une ressource"""
+        if username not in self.tokens:
+            return False
+        
+        try:
+            token = Biscuit.deserialize(self.tokens[username])
+            verifier = Verifier(SymbolTable.default())
+            verifier.add_fact(f'resource("{resource}")')
+            verifier.add_fact(f'operation("{operation}")')
+            
+            verifier.allow(f'right($resource, $operation) <- resource($resource), operation($operation), right($resource, $operation)')
+            verifier.deny(f'revoked_right($resource, $operation) <- resource($resource), operation($operation), revoked_right($resource, $operation)')
+            
+            result = token.verify(self.root_key.public(), verifier)
+            return result.is_ok()
+            
+        except Exception as e:
+            console.print(f"[red]Erreur lors de la vérification: {e}[/red]")
+            return False
+    
+    def attenuate_token(self, username: str, resource: str, operation: str) -> str:
+        """Atténue un jeton en supprimant une permission"""
+        if username not in self.tokens:
+            raise CookiesChainError("Aucun jeton trouvé pour cet utilisateur")
+        
+        try:
+            token = Biscuit.deserialize(self.tokens[username])
+            block = token.create_block()
             block.add_caveat(f'revoked_right("{resource}", "{operation}")')
+            
+            attenuated_token = token.append(block)
+            token_str = attenuated_token.serialize()
+            self.tokens[username] = token_str
+            self._save_tokens()
+            return token_str
+            
+        except Exception as e:
+            raise CookiesChainError(f"Erreur lors de l'atténuation: {e}")
+    
+    def share_token(self, source_user: str, target_user: str, resource: str, operation: str):
+        """Partage un jeton atténué avec un autre utilisateur"""
+        if source_user not in self.tokens:
+            raise CookiesChainError("Utilisateur source non trouvé")
+        
+        try:
+            base_token = Biscuit.deserialize(self.tokens[source_user])
+            block = base_token.create_block()
+            block.add_caveat(f'revoked_right("{resource}", "{operation}")')
+            
             shared_token = base_token.append(block)
-            tokens[target_user] = shared_token.serialize()
-            save_tokens(tokens)
+            self.tokens[target_user] = shared_token.serialize()
+            self._save_tokens()
+            
+        except Exception as e:
+            raise CookiesChainError(f"Erreur lors du partage: {e}")
 
-            print(f"\n✅ Jeton atténué partagé avec {target_user} (restriction sur {operation} de {resource}).")
+def clear_screen():
+    """Efface l'écran de manière cross-platform"""
+    os.system('cls' if os.name == 'nt' else 'clear')
 
-        elif choice == "6":
-            print("À bientôt ! 👋")
-            break
+def display_header():
+    """Affiche l'en-tête du programme"""
+    console.print(Panel.fit(
+        "[bold blue]🍪 Cookies-Chain[/bold blue]\n"
+        "[dim]Système de gestion d'accès basé sur Biscuit-Sec[/dim]",
+        border_style="blue"
+    ))
 
-        input("\nAppuyez sur Entrée pour continuer...")  # Pause avant de réafficher l'interface
+def display_users_table(token_manager: TokenManager):
+    """Affiche la liste des utilisateurs sous forme de tableau"""
+    if not token_manager.tokens:
+        console.print("[yellow]Aucun utilisateur enregistré[/yellow]")
+        return
+    
+    table = Table(title="👥 Utilisateurs")
+    table.add_column("Nom d'utilisateur", style="cyan")
+    table.add_column("Statut", style="green")
+    
+    for username in token_manager.tokens.keys():
+        table.add_row(username, "✅ Actif")
+    
+    console.print(table)
 
-# Exécuter la CLI
+def interactive_menu():
+    """Menu interactif principal"""
+    token_manager = TokenManager()
+    
+    while True:
+        clear_screen()
+        display_header()
+        
+        console.print("\n[bold]Menu principal:[/bold]")
+        console.print("1. 👤 Créer un utilisateur")
+        console.print("2. 🔍 Vérifier un accès")
+        console.print("3. ⚠️  Atténuer un jeton")
+        console.print("4. 👥 Afficher les utilisateurs")
+        console.print("5. 🤝 Partager un jeton")
+        console.print("6. 🚪 Quitter")
+        
+        choice = Prompt.ask("\nVotre choix", choices=["1", "2", "3", "4", "5", "6"])
+        
+        try:
+            if choice == "1":
+                username = Prompt.ask("Nom d'utilisateur")
+                if username:
+                    token_manager.create_token(username)
+                    console.print(f"[green]✅ Utilisateur '{username}' créé avec succès![/green]")
+                
+            elif choice == "2":
+                username = Prompt.ask("Nom d'utilisateur")
+                if username not in token_manager.tokens:
+                    console.print("[red]❌ Utilisateur non trouvé[/red]")
+                else:
+                    resource = Prompt.ask("Ressource", choices=FILES)
+                    operation = Prompt.ask("Opération", choices=["read", "write"])
+                    
+                    if token_manager.verify_access(username, resource, operation):
+                        console.print(f"[green]✅ Accès autorisé: {username} peut {operation} sur {resource}[/green]")
+                    else:
+                        console.print(f"[red]❌ Accès refusé: {username} ne peut pas {operation} sur {resource}[/red]")
+            
+            elif choice == "3":
+                username = Prompt.ask("Nom d'utilisateur")
+                if username not in token_manager.tokens:
+                    console.print("[red]❌ Utilisateur non trouvé[/red]")
+                else:
+                    resource = Prompt.ask("Ressource à restreindre", choices=FILES)
+                    operation = Prompt.ask("Opération à supprimer", choices=["read", "write"])
+                    
+                    token_manager.attenuate_token(username, resource, operation)
+                    console.print(f"[green]✅ Droit '{operation}' supprimé pour {username} sur {resource}[/green]")
+            
+            elif choice == "4":
+                display_users_table(token_manager)
+            
+            elif choice == "5":
+                source_user = Prompt.ask("Utilisateur source")
+                target_user = Prompt.ask("Utilisateur cible")
+                resource = Prompt.ask("Ressource à restreindre", choices=FILES)
+                operation = Prompt.ask("Opération à restreindre", choices=["read", "write"])
+                
+                token_manager.share_token(source_user, target_user, resource, operation)
+                console.print(f"[green]✅ Jeton partagé avec {target_user}[/green]")
+            
+            elif choice == "6":
+                console.print("[blue]👋 Au revoir![/blue]")
+                break
+                
+        except CookiesChainError as e:
+            console.print(f"[red]❌ Erreur: {e}[/red]")
+        except KeyboardInterrupt:
+            console.print("\n[yellow]Opération annulée[/yellow]")
+        except Exception as e:
+            console.print(f"[red]❌ Erreur inattendue: {e}[/red]")
+        
+        if choice != "6":
+            input("\nAppuyez sur Entrée pour continuer...")
+
+# Interface CLI avec Click
+@click.group()
+def cli():
+    """🍪 Cookies-Chain - Système de gestion d'accès basé sur Biscuit-Sec"""
+    pass
+
+@cli.command()
+@click.argument('username')
+def create_user(username):
+    """Crée un nouvel utilisateur"""
+    token_manager = TokenManager()
+    try:
+        token_manager.create_token(username)
+        console.print(f"[green]✅ Utilisateur '{username}' créé avec succès![/green]")
+    except CookiesChainError as e:
+        console.print(f"[red]❌ Erreur: {e}[/red]")
+
+@cli.command()
+@click.argument('username')
+@click.argument('resource', type=click.Choice(FILES))
+@click.argument('operation', type=click.Choice(['read', 'write']))
+def verify(username, resource, operation):
+    """Vérifie l'accès d'un utilisateur"""
+    token_manager = TokenManager()
+    if token_manager.verify_access(username, resource, operation):
+        console.print(f"[green]✅ Accès autorisé[/green]")
+    else:
+        console.print(f"[red]❌ Accès refusé[/red]")
+
+@cli.command()
+def list_users():
+    """Liste tous les utilisateurs"""
+    token_manager = TokenManager()
+    display_users_table(token_manager)
+
+@cli.command()
+def interactive():
+    """Lance le mode interactif"""
+    interactive_menu()
+
 if __name__ == "__main__":
     cli()
