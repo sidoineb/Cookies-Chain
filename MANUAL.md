@@ -224,6 +224,6 @@ Ce projet est sous licence GNU GPL v3.0. Voir le fichier [LICENSE](LICENSE) pour
 ## 📞 Support
 
 Pour toute question ou problème :
-- Ouvrir une [issue](https://github.com/votre-username/cookies-chain/issues)
-- Consulter la [documentation](https://github.com/votre-username/cookies-chain/wiki)
+- Ouvrir une [issue](https://github.com/sidoineb/Cookies-Chain/issues)
+- Consulter la [documentation](https://github.com/sidoineb/Cookies-Chain/wiki)
 
