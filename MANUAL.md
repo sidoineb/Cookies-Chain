@@ -24,7 +24,7 @@
 
 ```bash
 # Cloner le repository
-git clone https://github.com/votre-username/cookies-chain.git
+git clone https://github.com/sidoineb/Cookies-Chain.git
 cd cookies-chain
 
 # Installation des dépendances
@@ -90,7 +90,7 @@ python main.py interactive
 
 1. **Cloner le projet**
    ```bash
-   git clone https://github.com/votre-username/cookies-chain.git
+   git clone https://github.com/sidoineb/Cookies-Chain.git
    cd cookies-chain
    ```
 
