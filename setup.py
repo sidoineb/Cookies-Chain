@@ -3,12 +3,12 @@ from setuptools import setup, find_packages
 setup(
     name="cookies-chain",
     version="1.0.0",
-    author="Votre Nom",
-    author_email="votre.email@example.com",
+    author="Sidoine B.",
+    author_email="sidoineb@laposte.net",
     description="Système de gestion d'accès basé sur Biscuit-Sec",
-    long_description=open("README.md").read(),
+    long_description=open("MANUAL.md").read(),
     long_description_content_type="text/markdown",
-    url="https://github.com/votre-username/cookies-chain",
+    url="https://github.com/sidoineb/cookies-chain",
     packages=find_packages(),
     install_requires=[
         "biscuit-auth>=2.0.0",
